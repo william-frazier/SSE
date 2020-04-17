@@ -2,15 +2,49 @@
 from random import sample
 from Crypto.Cipher import AES
 from Cryptodome.Hash import HMAC, SHA256
+from Crypto.Random import get_random_bytes
+from nltk.stem import PorterStemmer
+from nltk.corpus import stopwords 
+import time
+import re
 
 
+documents = [["Massachusetts, officially known as the Commonwealth of Massachusetts, is the most populous state in the New England region of the northeastern United States. It borders on the Atlantic Ocean to the east, the states of Connecticut and Rhode Island to the south, New Hampshire and Vermont to the north, and New York to the west. The capital of Massachusetts is Boston, which is also the most populous city in New England. It is home to the Greater Boston metropolitan area, a region influential upon American history, academia, and industry. Originally dependent on agriculture, fishing and trade, Massachusetts was transformed into a manufacturing center during the Industrial Revolution. During the 20th century, Massachusetts's economy shifted from manufacturing to services. Modern Massachusetts is a global leader in biotechnology, engineering, higher education, finance, and maritime trade",0],
+             ["Boston is the capital and most populous city[9] of the Commonwealth of Massachusetts in the United States, and the 21st most populous city in the United States. The city proper covers 49 square miles (127 km2) with an estimated population of 694,583 in 2018,[3] also making it the most populous city in New England.[2] Boston is the seat of Suffolk County as well, although the county government was disbanded on July 1, 1999.[10] The city is the economic and cultural anchor of a substantially larger metropolitan area known as Greater Boston, a metropolitan statistical area (MSA) home to a census-estimated 4.8 million people in 2016 and ranking as the tenth-largest such area in the country.[11] As a combined statistical area (CSA), this wider commuting region is home to some 8.2 million people, making it the sixth most populous in the United States.",1],
+             ["New England is a region composed of six states in the northeastern United States: Maine, Vermont, New Hampshire, Massachusetts, Rhode Island, and Connecticut.[4][5][6][7][8][9] It is bordered by the state of New York to the west and by the Canadian provinces of New Brunswick to the northeast and Quebec to the north. The Atlantic Ocean is to the east and southeast, and Long Island Sound is to the southwest. Boston is New England's largest city, as well as the capital of Massachusetts. Greater Boston is the largest metropolitan area, with nearly a third of New England's population; this area includes Worcester, Massachusetts (the second-largest city in New England), Manchester, New Hampshire (the largest city in New Hampshire), and Providence, Rhode Island (the capital of and largest city in Rhode Island).",2],
+             ["Worcester is a city, and county seat of, Worcester County, Massachusetts, United States. Named after Worcester, England, as of the 2010 Census the city's population was 181,045,[4] making it the second-most populous city in New England after Boston.[a] Worcester is approximately 40 miles (64 km) west of Boston, 50 miles (80 km) east of Springfield and 40 miles (64 km) north of Providence. Due to its location in Central Massachusetts, Worcester is known as the 'Heart of the Commonwealth', thus, a heart is the official symbol of the city. However, the heart symbol may also have its provenance in lore that the Valentine's Day card, although not invented in the city, was first mass-produced and popularized by Worcester resident Esther Howland.[6]",3],
+             ["Providence is the capital and most populous city of the state of Rhode Island and is one of the oldest cities in the United States.[6] It was founded in 1636 by Roger Williams, a Reformed Baptist theologian and religious exile from the Massachusetts Bay Colony. He named the area in honor of 'God's merciful Providence' which he believed was responsible for revealing such a haven for him and his followers. The city is situated at the mouth of the Providence River at the head of Narragansett Bay.",4],
+             ["Greater Boston is the metropolitan region of New England encompassing the municipality of Boston, the capital of the U.S. state of Massachusetts and the most populous city in New England, as well as its surrounding areas. The region forms the northern arc of the US northeast megalopolis and as such, Greater Boston can be described either as a metropolitan statistical area (MSA), or as a broader combined statistical area (CSA). The MSA consists of most of the eastern third of Massachusetts, excluding the South Coast region and Cape Cod; while the CSA additionally includes the municipalities of Manchester (the largest city in the U.S. state of New Hampshire), Worcester, Massachusetts (the second largest city in New England), as well as the South Coast region and Cape Cod in Massachusetts. While the small footprint of the city of Boston itself only contains an estimated 685,094, the urbanization has extended well into surrounding areas; the CSA is one of two in Massachusetts, the only other being Greater Springfield. Greater Boston is the only CSA-form statistical area in New England which crosses into three states (Massachusetts, New Hampshire and Rhode Island).",5],
+             ["Boston University (BU) is a private research university in Boston, Massachusetts. The university is nonsectarian,[9] but has been historically affiliated with the United Methodist Church.[4][5] The university has over 3,900 faculty members and nearly 33,000 students, and is one of Boston's largest employers.[10] It offers bachelor's degrees, master's degrees, doctorates, and medical, dental, business, and law degrees through 18 schools and colleges on two urban campuses. The main campus is situated along the Charles River in Boston's Fenway-Kenmore and Allston neighborhoods, while the Boston University Medical Campus is located in Boston's South End neighborhood.",6]]
 
-documents = [["this is a test",0],["Test this file",1],["here is the text",2],["the text is missing",3]]
-keywords = ["this","is","test","text"]
+# All documents are the first paragraph of a Wikipedia article:
+# document 0 is Massachusetts
+# document 1 is Boston
+# document 2 is New England
+# document 3 is Worcester
+# document 4 is Providence
+# document 5 is Greater Boston
+# document 6 is BU
 
-key_f = b'\x00'*16
-key_p = b'\x11'*16
-iv = b'\x00'*16
+key_f = get_random_bytes(16)
+key_p = get_random_bytes(16)
+iv = get_random_bytes(16)
+
+
+def produce_keywords(document):
+    stop_words = set(stopwords.words('english')) 
+#    porter = PorterStemmer()
+    stemmed_file = ""
+    regex = re.compile('[^a-zA-Z]')
+    #First parameter is the replacement, second parameter is your input string
+    document = regex.sub(' ', document)
+    document = document.lower()
+    document = document.split()
+    for word in document:
+        if word not in stop_words:
+            stemmed_file += word
+            stemmed_file += " "
+    return stemmed_file
 
 
 
@@ -191,7 +225,6 @@ def search_db(tk1,tk2,db,table):
     cipher = AES.new(tk2, AES.MODE_CBC, iv)
     decrypted_pointer = cipher.decrypt(pointer)
     location = int(remove_pkcs_pad(decrypted_pointer).decode())
-    
     # value now represents the beginning of the word chain.
     value = db[location]
     stop = False
@@ -217,6 +250,76 @@ def search_db(tk1,tk2,db,table):
             # Otherwise, update the pointer and repeat the process.
             value = db[int(decryption_pointer)]
     return documents
+    
+
+
+def system_run(documents):
+    keywords = set()
+    for document in documents:
+        for word in produce_keywords(document[0]).split():
+            keywords.add(word)
+    keywords = list(keywords)
+    keywords.sort()
+    print("The system will allow you to search for the following keywords:", keywords)
+    time.sleep(1)
+    print()
+    print("Building RAM1...")
+    time.sleep(2)
+    RAM1 = build_RAM1(documents, keywords)
+    print("Here is RAM1:")
+    print(RAM1)
+    time.sleep(2)
+    print()
+    print("Building RAM2...")
+    time.sleep(2)
+    RAM2 = build_RAM2(RAM1)
+    print("Here is RAM2:")
+    print(RAM2)
+    time.sleep(2)
+    print()
+    print("Building RAM3...")
+    time.sleep(2)
+    RAM3 = build_RAM3(RAM2,keywords)
+    table = RAM3[1]
+    print("Here is RAM3:")
+    print(RAM3[0])
+    time.sleep(2)
+    print()
+    print("Here is the lookup table:")
+    print(table)
+    time.sleep(3)
+    print()
+    x = ()
+    print("You can now search for any of the following words:", keywords)
+    while True:
+#        
+        print("What word would you like to search? (Or type 'quit' to exit.) ")
+        x = input()
+        x = x.lower()
+        if x == 'quit':
+            break
+        print("Searching for", x)
+        if x not in keywords:
+            print("Invalid choice.")
+            print()
+        else:
+            tk1,tk2 = produce_search_tokens(x)
+            print("Your search tokens are:", tk1, "and", tk2)
+            time.sleep(1)
+            print("Looking at table[", tk1, "]")
+            print("Found pointer to slot", table[tk1])
+            time.sleep(2)
+            print("Decrypting...")
+            time.sleep(2)
+            cipher = AES.new(tk2, AES.MODE_CBC, iv)
+            decrypted_pointer = cipher.decrypt(table[tk1])
+            location = int(remove_pkcs_pad(decrypted_pointer).decode())
+            print("Found", location)
+            print("Following pointers...")
+            time.sleep(2)
+            print("IDs of documents containing", x + ":", search_db(tk1,tk2,RAM3[0],table))
+            time.sleep(2)
+            print()
     
 
 
