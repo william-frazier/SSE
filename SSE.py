@@ -26,24 +26,33 @@ documents = [["Massachusetts, officially known as the Commonwealth of Massachuse
 # document 5 is Greater Boston
 # document 6 is BU
 
-key_f = get_random_bytes(16)
-key_p = get_random_bytes(16)
-iv = get_random_bytes(16)
+key_f = get_random_bytes(16) #PRF key
+key_p = get_random_bytes(16) #PRP key
+iv = get_random_bytes(16)    #IV for CBC
 
 
 def produce_keywords(document):
+    """
+    This function takes a document and automatically produces keywords. It 
+    removes all none alphabetic characters and converts everything to lower
+    case. Originally, I also stemmed words but eventually cut this out; in a 
+    deployment version of code, it probably makes sense to add it back in.
+    """
+    
+    # use NLTK to remove stop words
     stop_words = set(stopwords.words('english')) 
-#    porter = PorterStemmer()
     stemmed_file = ""
+    # use regular expressions to remove all none alphabetic characters
     regex = re.compile('[^a-zA-Z]')
-    #First parameter is the replacement, second parameter is your input string
     document = regex.sub(' ', document)
+    # convert everything to lower case
     document = document.lower()
     document = document.split()
     for word in document:
         if word not in stop_words:
             stemmed_file += word
             stemmed_file += " "
+    # returned the cleaned up string
     return stemmed_file
 
 
@@ -152,11 +161,10 @@ def build_RAM3(RAM2, keywords):
 def build_table(RAM2, keywords):
     """
     This function builds our table which allows us to find the location of the
-    first pointer in the chain for a given word. This should technically return
-    an array, not a dictionary, but that would require a small-domain PRP 
-    (and we need to be able to tweak the output size) which is really difficult
-    to do based on what I saw online. So I'm simply using AES as my PRP in order
-    to get a similar effect.
+    first pointer in the chain for a given word. The scheme I've been building
+    uses an FKS table here but looking online, that seemed really complicated.
+    Dictionaries have been used in other schemes (see my report) so I chose to
+    use that here.
     """
     
     table = {}
@@ -176,7 +184,9 @@ def build_table(RAM2, keywords):
             cipher = AES.new(key_w, AES.MODE_CBC, iv)
             value = cipher.encrypt(pkcs7_pad(str(index).encode()))
             
-            #This should be a small domain PRP but this is my simulation of that.
+            # If I was implementing the scheme correctly this would be a small
+            #domain PRP and table would be an FKS table. But a dictionary 
+            #should work just fine.
             PRP = AES.new(key_p, AES.MODE_CBC, iv)
             table_location = PRP.encrypt(pkcs7_pad(keywords[entry[2]].encode()))
             table[table_location] = value
@@ -253,7 +263,15 @@ def search_db(tk1,tk2,db,table):
     
 
 
-def system_run(documents):
+def system_run(documents=documents):
+    """
+    I built this just to display the functionality of my system. It doesn't do
+    anything that the rest of my code doesn't do but it steps through exactly
+    what's happening.
+    """
+    
+    print("Using keys", key_f, key_p)
+    time.sleep(1)
     keywords = set()
     for document in documents:
         for word in produce_keywords(document[0]).split():
