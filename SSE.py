@@ -41,10 +41,17 @@ def produce_keywords(document):
     
     # use NLTK to remove stop words
     stop_words = set(stopwords.words('english')) 
+    # It's called stemmed_file because originally I stemmed the words
     stemmed_file = ""
+    
     # use regular expressions to remove all none alphabetic characters
-    regex = re.compile('[^a-zA-Z]')
+    # Note: my SSE scheme works perfectly well searching for non-alphabetic 
+    # characters. I just did this to simplify things. But everything works just
+    # as well if you add something with non-alphanumeric characters to your 
+    # list of keywords
+    regex = re.compile('[^a-zA-Z]') 
     document = regex.sub(' ', document)
+    
     # convert everything to lower case
     document = document.lower()
     document = document.split()
@@ -63,7 +70,9 @@ def build_RAM1(documents, keywords):
     list which is tracking the same word (if such a list exists), an int
     keeping track of which word this is for, and a boolean designating if this
     is the first time a list for this word appears. This is a little complicated 
-    because Python doesn't have pointers which is ideally what I would use.
+    because Python doesn't have pointers which is ideally what I would use. All
+    that is strictly necessary is the ID and the pointer but the rest of it just
+    makes RAM2 and table easier to construct in the absence of pointers.
     """
     
     # first I randomly shuffle the order of the documents because otherwise
@@ -125,11 +134,10 @@ def build_RAM2(RAM1):
 def build_RAM3(RAM2, keywords):
     """
     This function encrypts everything in RAM2. It does this by first finding 
-    key_w = PRF(key_f, word) 
-    for whatever word the current list is tracking. It then uses that key_w
-    in AES to encrypt the two elements in RAM2 (there is no longer any need to
-    keep track of the word so we can ditch the third element, and the boolean
-    is only being used for the build_table() function).
+    key_w = PRF(key_f, word) for whatever word the current list is tracking. It 
+    then uses that AES with key_w to encrypt the two elements in RAM2 (there is 
+    no longer any need to keep track of the word so we can ditch the third 
+    element, and the boolean is only being used for the build_table() function).
     """
     
     RAM3 = []
@@ -153,6 +161,7 @@ def build_RAM3(RAM2, keywords):
             ciphertext = cipher.encrypt(padded_item)
             current_list.append(ciphertext)
             # current_list is now [enc(documentID), enc(pointer to next elt)]
+            # using a key derived by running the word through a PRF (HMAC)
         RAM3.append(current_list)
     return RAM3, table
         
@@ -197,7 +206,7 @@ def build_table(RAM2, keywords):
 def produce_search_tokens(keyword):
     """
     When the client wants to search, they need to compute a search token
-    tk = (tk1,tk2) = (PRP(w,key_p),PRF(w,key_f)). This function finds the 
+    tk = (tk1,tk2) = (PRP(w,key_p),PRF(w,key_f)). This function finds that 
     token.
     """
     
@@ -228,6 +237,7 @@ def search_db(tk1,tk2,db,table):
         pointer = table[tk1]
         
     except:
+        # If this word isn't a keyword, the entry in the dictionary won't exist
         raise KeyError("The key you are searching for was not used in constructing the database so you cannot search for it.")
         
     # The pointer found in the table is encrypted under tk2 so the server 
@@ -249,7 +259,7 @@ def search_db(tk1,tk2,db,table):
         document = cipher.decrypt(value[0])
         documents.add(int(remove_pkcs_pad(document)))
         
-        # The server also decrypted the pointer using tk2.
+        # The server also decrypts the pointer using tk2.
         cipher = AES.new(tk2, AES.MODE_CBC, iv)
         decryption_pointer = remove_pkcs_pad(cipher.decrypt(value[1]))
         
@@ -309,8 +319,7 @@ def system_run(documents=documents):
     print()
     x = ()
     print("You can now search for any of the following words:", keywords)
-    while True:
-#        
+    while True:       
         print("What word would you like to search? (Or type 'quit' to exit.) ")
         x = input()
         x = x.lower()
